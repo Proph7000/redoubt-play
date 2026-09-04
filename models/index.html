@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Моделі Redoubt · бриф для 3D</title>
+<meta name="description" content="Формат експорту з Blender і міра деталізації для ізометричних моделей Redoubt.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+    /* Палітра гри — та сама, що художник побачить на екрані (src/render/palette.ts) */
+    --ink: #0e1116;
+    --panel: #141a22;
+    --panel-2: #1a212b;
+    --line: #232b36;
+    --line-soft: #1c242e;
+    --text: #d7dde5;
+    --text-dim: #8b97a6;
+    --text-faint: #67717e;
+    --blue: #7fb0e0;
+    --orange: #e08a4a;
+    --sand: #e8c98a;
+    --violet: #b98fc4;
+    --slate: #5f7d99;
+
+    --sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --cond: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 940px; margin: 0 auto; padding: 56px 28px 120px; }
+
+  /* ── шапка ─────────────────────────────────────────── */
+  header { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 44px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--slate);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--cond); font-weight: 700; font-size: clamp(34px, 6vw, 52px);
+    line-height: 1.03; letter-spacing: -0.015em; margin: 0 0 16px;
+    text-wrap: balance;
+  }
+  .lede { font-size: 17px; color: var(--text-dim); max-width: 62ch; margin: 0; }
+  .lede b { color: var(--text); font-weight: 600; }
+
+  /* ── секції ────────────────────────────────────────── */
+  section { margin: 0 0 52px; }
+  h2 {
+    font-family: var(--cond); font-weight: 600; font-size: 24px;
+    letter-spacing: -0.005em; margin: 0 0 6px; text-wrap: balance;
+  }
+  h2 .num {
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    color: var(--slate); margin-right: 12px; vertical-align: 3px;
+  }
+  h3 {
+    font-family: var(--cond); font-weight: 600; font-size: 17px;
+    margin: 30px 0 8px; color: var(--text);
+  }
+  .sub { color: var(--text-dim); font-size: 14px; margin: 0 0 20px; max-width: 66ch; }
+  p { max-width: 66ch; margin: 0 0 14px; }
+  p.tight { margin-bottom: 8px; }
+  code, .m { font-family: var(--mono); font-size: 0.9em; }
+  code { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 3px; padding: 1px 5px; color: var(--sand); }
+  strong { font-weight: 600; color: #eef2f7; }
+
+  /* ── головне число ─────────────────────────────────── */
+  .headline {
+    background: var(--panel); border: 1px solid var(--line);
+    border-left: 3px solid var(--blue);
+    padding: 24px 26px; margin: 0 0 8px;
+    display: grid; grid-template-columns: auto 1fr; gap: 26px; align-items: center;
+  }
+  .headline .big {
+    font-family: var(--cond); font-weight: 700; font-size: 46px; line-height: 1;
+    color: var(--blue); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .headline .big span { font-size: 20px; color: var(--text-dim); font-weight: 500; }
+  .headline p { margin: 0; font-size: 14px; color: var(--text-dim); }
+  .headline p b { color: var(--text); }
+
+  /* ── таблиці ───────────────────────────────────────── */
+  .scroll { overflow-x: auto; margin: 0 0 10px; border: 1px solid var(--line); background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 560px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
+  th {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint);
+    background: var(--panel-2); white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.key { font-family: var(--mono); color: var(--sand); white-space: nowrap; }
+  .pill {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+  }
+  .s { background: rgba(232,201,138,0.14); color: var(--sand); border: 1px solid rgba(232,201,138,0.3); }
+  .mm { background: rgba(185,143,196,0.14); color: var(--violet); border: 1px solid rgba(185,143,196,0.3); }
+  .l { background: rgba(95,125,153,0.2); color: #9db6cc; border: 1px solid rgba(95,125,153,0.45); }
+  caption { caption-side: bottom; text-align: left; padding: 10px 14px 0; font-size: 12.5px; color: var(--text-faint); }
+
+  /* ── чеклист експорту ──────────────────────────────── */
+  .checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 1px; background: var(--line-soft); border: 1px solid var(--line); }
+  .checks li { background: var(--panel); padding: 13px 16px; display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: start; }
+  .checks li .box {
+    width: 13px; height: 13px; margin-top: 5px;
+    border: 1.5px solid var(--slate); border-radius: 2px;
+  }
+  .checks .what { font-weight: 600; color: #eef2f7; }
+  .checks .why { display: block; color: var(--text-dim); font-size: 13px; margin-top: 2px; }
+
+  /* ── дві колонки: треба / не треба ─────────────────── */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } .headline { grid-template-columns: 1fr; gap: 12px; } }
+  .card { border: 1px solid var(--line); background: var(--panel); padding: 20px 22px; }
+  .card.no { border-left: 3px solid var(--orange); }
+  .card.yes { border-left: 3px solid var(--blue); }
+  .card h3 { margin-top: 0; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card li { margin-bottom: 7px; color: var(--text-dim); font-size: 14px; }
+  .card li b { color: var(--text); font-weight: 600; }
+
+  /* ── попередження ──────────────────────────────────── */
+  .warn {
+    border: 1px solid rgba(224,138,74,0.35); background: rgba(224,138,74,0.07);
+    border-left: 3px solid var(--orange); padding: 18px 22px; margin: 0 0 14px;
+  }
+  .warn .tag {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--orange); display: block; margin-bottom: 7px;
+  }
+  .warn p { margin: 0; font-size: 14px; }
+  .warn p + p { margin-top: 10px; }
+
+  /* ── конвеєр ───────────────────────────────────────── */
+  .flow { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .flow li {
+    counter-increment: step;
+    display: grid; grid-template-columns: 30px 1fr; gap: 14px; align-items: baseline;
+    border-bottom: 1px solid var(--line-soft); padding-bottom: 12px;
+  }
+  .flow li:last-child { border-bottom: none; padding-bottom: 0; }
+  .flow li::before {
+    content: counter(step);
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--blue); border: 1px solid var(--line);
+    width: 24px; height: 24px; display: grid; place-items: center; border-radius: 2px;
+    background: var(--panel-2);
+  }
+  .flow .what { font-weight: 600; color: #eef2f7; }
+  .flow .who { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-left: 8px; }
+  .flow .why { display: block; color: var(--text-dim); font-size: 13.5px; margin-top: 2px; }
+
+  footer {
+    margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line);
+    color: var(--text-faint); font-size: 13px;
+  }
+  footer code { color: var(--text-dim); }
+/* Сторінка живе поза грою, тому їй потрібна власна навігація назад. */
+  .backbar {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(14,17,22,0.92); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .backbar .inner {
+    max-width: 940px; margin: 0 auto; padding: 12px 28px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .backbar a {
+    font-family: var(--mono); font-size: 12px; color: var(--blue);
+    text-decoration: none; border: 1px solid var(--line);
+    background: var(--panel-2); padding: 6px 12px; border-radius: 3px;
+  }
+  .backbar a:hover, .backbar a:focus-visible { border-color: var(--blue); outline: none; }
+  .backbar span {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-faint);
+  }
+</style>
+</head>
+<body>
+<nav class="backbar"><div class="inner">
+  <a href="../">← до гри</a>
+  <span>redoubt · бриф для 3D</span>
+</div></nav>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Redoubt · ізометрія · технічний бриф</p>
+  <h1>Моделі: формат і міра деталізації</h1>
+  <p class="lede">Гра — tower defence з ізометричною камерою. Моделі <b>реальні 3D</b>, не спрайти: рушій крутить їх у сцені сам, тому напрямки й повороти малювати не треба. Усе нижче — вимоги коду, і майже все перевіряється автоматично.</p>
+</header>
+
+<section>
+  <h2><span class="num">01</span> Головне число, від якого залежить усе інше</h2>
+  <div class="headline">
+    <div class="big">13–30 <span>px</span></div>
+    <p>Стільком пікселів на екрані займає <b>одна башта</b>. Карта — 64 клітинок у ширину, башта стоїть на одній: це 1/64 ширини кадру. На екрані 1920 px виходить 30, у невеликому вікні — 13.</p>
+  </div>
+  <p class="sub">Тому детальна поверхня втрачається повністю. Що працює на такому розмірі — <strong>силует</strong> і <strong>світлотіньова маса</strong>. Що не працює — фаски, болти, дрібні панелі, текстурні написи, нормал-мапи.</p>
+  <p>Практичний тест: зменш рендер моделі до 30 px і подивись, чи відрізняється вона від сусідньої. Якщо ні — різницю треба перенести в силует, а не в деталь.</p>
+</section>
+
+<section>
+  <h2><span class="num">02</span> Формат: чеклист експорту з Blender</h2>
+  <p class="sub">Один файл <code>.glb</code> на сутність. Не <code>.blend</code>, не <code>.fbx</code> — glTF єдиний, що код читає без конвертера.</p>
+  <ul class="checks">
+    <li><span class="box"></span><span><span class="what">Формат: glTF 2.0 Binary (<code>.glb</code>)</span><span class="why">У вікні експорту: <span class="m">File → Export → glTF 2.0</span>, формат <span class="m">glTF Binary</span>.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Галочка <code>+Y Up</code> — увімкнена</span><span class="why">Blender працює в Z-up, glTF у Y-up. Експортер це виправляє, але тільки з цією галочкою. Без неї модель ляже на бік.</span></span></li>
+    <li><span class="box"></span><span><span class="what">1 одиниця Blender = 1 клітинка сітки</span><span class="why">Об'єкт на одну клітинку має бути шириною рівно 1.0. Тоді код нічого не масштабує.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Масштаб застосований: <code>Ctrl+A → Scale</code></span><span class="why">Залишковий scale ламає інстансинг — гра малює сотні копій однією командою, і «своя» трансформація це вимикає.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Початок координат: центр основи, на рівні ґрунту</span><span class="why">По XY — центр footprint, по Z — <span class="m">0</span> на підошві, не в центрі маси. Тоді розміщення = «поставити в центр клітинки», без поправок.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Перед моделі дивиться в <code>+Y</code></span><span class="why">Башти повертаються до цілі кодом. Якщо перед дивиться інакше, повернеться боком.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Apply Modifiers + Triangulate при експорті</span><span class="why">Незапечені модифікатори й n-gon у glTF не переносяться.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Один матеріал, Principled BSDF простими значеннями</span><span class="why">Процедурні ноди Blender не експортуються <b>взагалі</b> — вийде сірий пластик. Колір, металік, шорсткість числами; текстура, якщо потрібна, одна.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Анімації — названими діями</span><span class="why">Імена точні, код бере кліп за іменем: башти — <span class="m">idle</span>, <span class="m">fire</span>; вороги — <span class="m">walk</span>, <span class="m">attack</span>, <span class="m">idle</span>, <span class="m">die</span>; десантник — <span class="m">idle</span>, <span class="m">fire</span>.</span></span></li>
+    <li><span class="box"></span><span><span class="what">Ім'я файлу — з таблиць нижче</span><span class="why">Це ключ сутності в даних гри. Тоді в коді немає таблиці відповідності, яку можна забути оновити.</span></span></li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">03</span> Що саме потрібно, з розмірами й бюджетом</h2>
+  <p class="sub">Footprint — скільком клітинках стоїть об'єкт; це жорстко, від нього залежить проходимість. Трикутники — стеля, не мета: бюджет рахується як <strong>250 на клітинку ширини</strong> для ворогів і окремо для кожної іншої ролі, і масштабується лінійно, а не за площею.</p>
+
+  <h3>Башти — 18 типів, усі 1×1</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>файл</th><th>назва в грі</th><th>що робить</th><th>трикутників</th><th>висота</th></tr></thead>
+      <tbody>
+<tr><td class="key">basic.glb</td><td>автомат</td><td>черга з трьох; швидкий сустейн, проти броні безсилий, щит здирає довго</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">rail.glb</td><td>рейка</td><td>пробивний — ігнорує броню; повільна</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">cannon.glb</td><td>гармата</td><td>один важкий залп: здирає щит за постріл і продавлює броню масою; довга перезарядка</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">mortar.glb</td><td>мортира</td><td>урон по площі — косить скупчення</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">cryo.glb</td><td>кріо</td><td>майже не вбиває, але вповільнює всю групу — множить час під обстрілом</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">railgun.glb</td><td>рейкотрон</td><td>уражає всіх на лінії вистрілу</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">tesla.glb</td><td>тесла</td><td>бʼє ще трьох найближчих, навіть якщо вони розсіяні</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">relay.glb</td><td>ретранслятор</td><td>не стріляє; сусідні башти перезаряджаються швидше</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">aegis.glb</td><td>егіда</td><td>не стріляє; дає сусіднім баштам щит, що вигорає й відновлюється</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">spotter.glb</td><td>далекомір</td><td>не стріляє; сусідні башти дістають далі</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">resonator.glb</td><td>резонатор</td><td>не стріляє; енергетичний контур — сусідні башти рвуть щити</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">shroud.glb</td><td>завіса</td><td>не стріляє; ворожі стрільці мусять підійти впритул</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">booster.glb</td><td>підсилювач</td><td>не стріляє; подовжує радіус інших башт підтримки</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">granary.glb</td><td>елеватор</td><td>не стріляє; ферми поруч дають більший врожай</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">engineers.glb</td><td>інженерний парк</td><td>не стріляє; стіни поруч міцніші, а квота стін на хвилю більша</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">depot.glb</td><td>склад</td><td>не стріляє; будувати в радіусі дешевше</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">plasma.glb</td><td>плазмова батарея</td><td>важкий згусток по площі; зривати щит вчиться пізніше — «Перегрітим каналом»</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+<tr><td class="key">shock.glb</td><td>шокер</td><td>імпульс майже не ранить — він вимикає: оглушені стоять і не гризуть</td><td class="n">≤ 700</td><td class="n">≤ 1.5 кл.</td></tr>
+      </tbody>
+      <caption>18 силуетів, які мусять відрізнятись на 30 px. Це найважча частина роботи.</caption>
+    </table>
+  </div>
+
+  <h3>Вороги — 6 типів, 3 класи розміру</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>файл</th><th>назва</th><th>клас</th><th>footprint</th><th>характер</th><th>трикутників</th></tr></thead>
+      <tbody>
+<tr><td class="key">grunt.glb</td><td>піхота</td><td><span class="pill s">S</span></td><td class="n">1×1</td><td>наповнювач, тиск числом</td><td class="n">≤ 250</td></tr>
+<tr><td class="key">runner.glb</td><td>бігун</td><td><span class="pill s">S</span></td><td class="n">1×1</td><td>прослизає крізь повільніших дрібних — черга його не тримає</td><td class="n">≤ 250</td></tr>
+<tr><td class="key">armored.glb</td><td>бронеход</td><td><span class="pill mm">M</span></td><td class="n">2×2</td><td>броня — поріг: удар, не сильніший за неї, не робить нічого взагалі</td><td class="n">≤ 500</td></tr>
+<tr><td class="key">shielded.glb</td><td>щитоносець</td><td><span class="pill mm">M</span></td><td class="n">2×2</td><td>щит — запас, що вигорає: поки він цілий, влучання гасяться повністю; після паузи в бою набирається знову</td><td class="n">≤ 500</td></tr>
+<tr><td class="key">gunner.glb</td><td>стрілець</td><td><span class="pill s">S</span></td><td class="n">1×1</td><td>бʼє стіни й башні з дистанції; стіна попереду прикриває башню</td><td class="n">≤ 250</td></tr>
+<tr><td class="key">ram.glb</td><td>таран</td><td><span class="pill l">L</span></td><td class="n">3×3</td><td>не влазить у вузьке — ламає перепону</td><td class="n">≤ 750</td></tr>
+      </tbody>
+      <caption>Клас розміру — механіка, не оформлення: у вузький прохід L не пролізе взагалі. Габарит мусить читатись здалеку.</caption>
+    </table>
+  </div>
+
+  <h3>Споруди й рельєф</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>файл</th><th>що це</th><th>footprint</th><th>трикутників</th><th>висота</th></tr></thead>
+      <tbody>
+<tr><td class="key">wall-basic.glb</td><td>стіна звичайна <span class="why" style="color:var(--text-faint)">200 HP, ціна 3</span></td><td class="n">1×1</td><td class="n">≤ 150</td><td class="n">≤ 1 кл.</td></tr>
+<tr><td class="key">wall-reinforced.glb</td><td>стіна укріплена <span class="why" style="color:var(--text-faint)">600 HP, ціна 9</span></td><td class="n">1×1</td><td class="n">≤ 150</td><td class="n">≤ 1 кл.</td></tr>
+<tr><td class="key">farm.glb</td><td>ферма <span class="why" style="color:var(--text-faint)">дає дохід, не стріляє</span></td><td class="n">1×1</td><td class="n">≤ 400</td><td class="n">≤ 1.2 кл.</td></tr>
+<tr><td class="key">trooper.glb</td><td>десант <span class="why" style="color:var(--text-faint)">2 за висадку, живуть одну хвилю</span></td><td class="n">1×1</td><td class="n">≤ 200</td><td class="n">≤ 1 кл.</td></tr>
+<tr><td class="key">tile-empty.glb</td><td>ґрунт <span class="why" style="color:var(--text-faint)">тут можна будувати</span></td><td class="n">1×1</td><td class="n">≤ 60</td><td class="n">≤ 0.2 кл.</td></tr>
+<tr><td class="key">tile-rock.glb</td><td>скеля <span class="why" style="color:var(--text-faint)">не проходять і не будують</span></td><td class="n">1×1</td><td class="n">≤ 60</td><td class="n">≤ 0.2 кл.</td></tr>
+<tr><td class="key">tile-nobuild.glb</td><td>непридатне <span class="why" style="color:var(--text-faint)">проходять, але не будують</span></td><td class="n">1×1</td><td class="n">≤ 60</td><td class="n">≤ 0.2 кл.</td></tr>
+<tr><td class="key">tile-spawn.glb</td><td>брама <span class="why" style="color:var(--text-faint)">звідси виходять вороги</span></td><td class="n">1×1</td><td class="n">≤ 60</td><td class="n">≤ 0.2 кл.</td></tr>
+<tr><td class="key">tile-exit.glb</td><td>база <span class="why" style="color:var(--text-faint)">те, що захищають</span></td><td class="n">1×1</td><td class="n">≤ 60</td><td class="n">≤ 0.2 кл.</td></tr>
+      </tbody>
+      <caption>Плитки рельєфу повторюються сотнями, тому вони найдешевші. Варіації однієї плитки корисні, але не обов'язкові.</caption>
+    </table>
+  </div>
+  <p>Разом <strong>33 файлів</strong>. Найгірший кадр — близько 30 башт і 40 ворогів одночасно, тобто <span class="m">~51 тис.</span> трикутників. Для будь-якого заліза це ніщо, отже бюджети стоять не через продуктивність, а щоб час не пішов у деталь, якої не побачать.</p>
+</section>
+
+<section>
+  <h2><span class="num">04</span> Дві межі, які не косметичні</h2>
+
+  <div class="warn">
+    <span class="tag">висота</span>
+    <p><strong>Башта не вища за 1.5 клітинки. Ворог — не вище за 1.</strong></p>
+    <p>В ізометрії висока геометрія затуляє ґрунт за собою. А в цій грі на ґрунті малюється найважливіше: маршрути ворога й підсвітка, куди він піде. Зміряно, що вміння це бачити — вирішальне. Висока башта ховає рівно те, на що гравець дивиться.</p>
+  </div>
+
+  <div class="warn">
+    <span class="tag">колір</span>
+    <p><strong>Різниця між об'єктами тримається на силуеті й світлості, ніколи лише на відтінку.</strong></p>
+    <p>У грі є правило: знеколір кадр — усі рішення мусять читатись. Причина конкретна, не абстрактна доступність. Перевірка проста: постав дві моделі поруч, зроби чорно-білими, зменш до 30 px. Якщо не відрізняються — різницю треба в масу й обрис.</p>
+    <p>Смислові позначки (літери класу, значки типів загрози, перекреслення пошкодженого) домальовує гра окремим шаром <b>поверх</b> сцени. У модель їх закладати не треба.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">05</span> Що робити і чого не робити</h2>
+  <div class="cols">
+    <div class="card yes">
+      <h3>Потрібні анімації</h3>
+      <ul>
+        <li><b>Башти:</b> <span class="m">idle</span>, <span class="m">fire</span>. Постріл короткий — до 0,3 с; ствол може смикатись, більше не потрібно.</li>
+        <li><b>Вороги:</b> <span class="m">walk</span>, <span class="m">attack</span>, <span class="m">idle</span>, <span class="m">die</span> — хода циклом, <span class="m">attack</span> це ломити стіну, <span class="m">idle</span> це стояти в черзі.</li>
+        <li><b>Десантник:</b> <span class="m">idle</span>, <span class="m">fire</span>.</li>
+        <li><b>Стіни, ферма, плитки:</b> без анімацій.</li>
+      </ul>
+    </div>
+    <div class="card no">
+      <h3>Не потрібно — це зробить код</h3>
+      <ul>
+        <li><b>Варіанти по напрямках.</b> Модель повертається в сцені; 8 чи 16 ракурсів малювати не треба.</li>
+        <li><b>Стани пошкодження.</b> Гра перекреслює пошкоджену споруду в шарі поверх.</li>
+        <li><b>Літери, значки, підписи.</b> Той самий шар поверх.</li>
+        <li><b>LOD.</b> Модель і так завбільшки 30 px.</li>
+        <li><b>Нормал-мапи й запікання з хайполі.</b> На цьому розмірі не видно нічого.</li>
+        <li><b>Іконки інтерфейсу.</b> Окрема задача, не 3D.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">06</span> Як файл потрапляє в гру</h2>
+  <p class="sub">Порядок має значення — кожен крок ловить помилки попереднього.</p>
+  <ol class="flow">
+    <li><span><span class="what">Модель у Blender</span><span class="who">художник</span><span class="why">Силует, маса, анімації. Габарит перевіряється кубом 1×1×1 як лінійкою.</span></span></li>
+    <li><span><span class="what">Експорт у <code>.glb</code> за чеклистом</span><span class="who">художник</span><span class="why">Десять галочок із розділу 02. Дев'ять із десяти проблем інтеграції — саме тут.</span></span></li>
+    <li><span><span class="what">Файл у теку моделей</span><span class="who">будь-хто</span><span class="why">Кинути в <code>assets/models/</code> і закомітити. Більше нічого робити не треба.</span></span></li>
+    <li><span><span class="what">Автоматична перевірка</span><span class="who">код</span><span class="why">Тест розбирає файл і <b>падає з поясненням</b>, якщо щось не так. Не «виглядає криво в грі через тиждень», а «габарит 1.4 замість 1.0, рядок такий».</span></span></li>
+    <li><span><span class="what">Модель у грі</span><span class="who">код</span><span class="why">Завантаження, інстансинг, повороти, кліпи анімацій — усе автоматично за ім'ям файлу.</span></span></li>
+  </ol>
+
+  <h3>Що саме перевіряє автоматична перевірка</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>перевірка</th><th>чому вона є</th></tr></thead>
+      <tbody>
+        <tr><td>габарит вписується у свій footprint</td><td>ворог, ширший за прохід, зламав би пошук шляху</td></tr>
+        <tr><td>початок координат на підошві, по центру</td><td>інакше модель висить у повітрі або тоне в ґрунті</td></tr>
+        <tr><td>є всі очікувані анімації, за іменами</td><td>відсутній кліп — башта стріляє нерухомо</td></tr>
+        <tr><td>один матеріал, немає екзотичних розширень</td><td>інстансинг сотень копій вимагає одного матеріалу</td></tr>
+        <tr><td>трикутників не більше за бюджет</td><td>щоб хайполі не заїхало в гру випадково</td></tr>
+        <tr><td>висота в межах з розділу 04</td><td>висока геометрія ховає маршрути ворога</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">07</span> З чого починати</h2>
+  <p>Гра вже працює на заглушках — прості коробки правильних розмірів. Отже <strong>чекати нічого не треба й порядок вільний</strong>: кожна готова модель просто замінює свою коробку.</p>
+  <p>Якщо потрібен порядок, найкорисніший такий: <strong>автомат</strong> (видно завжди), далі дрібні вороги (їх на екрані десятки), потім стіна (їх сотні), далі решта башт, і <strong>таран</strong> наостанок — він найбільший і найпримітніший, тому робити його краще, коли стиль уже усталився.</p>
+  <p>Перша модель варта того, щоб пройти весь конвеєр цілком, навіть якщо вона чорнова: тоді решта 32 ідуть уже без сюрпризів.</p>
+</section>
+
+<footer>
+  Перелік сутностей, footprint і бюджети <b>виведені з даних гри</b> (<code>src/data/balance.json</code>) під час збірки — додався тип башти чи ворога, він з'явиться тут сам, і є тест, що це перевіряє. Знімок від 4 вересня. Що з балансу не виводиться й задано окремо: формат експорту, межі висоти, правило про силует.
+</footer>
+
+</div>
+</body>
+</html>

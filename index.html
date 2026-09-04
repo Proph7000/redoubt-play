@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redoubt — прототип №1</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: #0e1116;
+        color: #d7dde5;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        display: flex;
+        gap: 16px;
+        padding: 16px;
+        align-items: flex-start;
+        /* Карта не має їхати з екрана, коли панель довга: прокручується лише панель. */
+        overflow: hidden;
+        box-sizing: border-box;
+      }
+      /* `box-sizing: border-box` — щоб рамка входила в задану з JS ширину:
+         інакше полотно на 2 px ширше за колонку, і при вузькому вікні воно
+         починає її розпирати. */
+      canvas {
+        background: #11161d; border: 1px solid #232b36; image-rendering: pixelated;
+        max-width: 100%; box-sizing: border-box;
+      }
+      /* Ліва колонка: смуга з головними числами **над** картою, потім сама карта.
+         Причина — числа, на які гравець дивиться щосекунди (золото, дохід, квота,
+         обраний інструмент), не мають ділити увагу зі згорнутою довідкою. */
+      /* `align-items: flex-start` — не оформлення, а виправлення бага: типовий
+         `stretch` тягнув canvas по ширині колонки, а ширину колонки задавала
+         верхня смуга, яка змінюється разом із назвою обраної башти. Поле мовчки
+         змінювало масштаб, і клік ішов не в ту клітинку. */
+      /* Ліва колонка забирає **всю** ширину, що лишилась від сайдбара, і саме
+         тому карта може розтягуватись. `min-width: 0` обовʼязковий: без нього
+         flex-елемент не дає собі стиснутись менше за вміст, і широке полотно
+         виштовхувало б сайдбар за екран. */
+      #left {
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        flex: 1 1 auto; min-width: 0; height: 100%;
+      }
+      /* Смуга не має права бути ширшою за карту — інакше колонка розсувається й
+         усе під нею стрибає. Ширина задається з JS під розмір canvas. */
+      /* ⚠️ Висота смуги фіксована, і перенос рядків заборонений.
+         Раніше вона мала `flex-wrap: wrap` і ширину «точно як карта»: варто було
+         обрати башту з довшою назвою — смуга переносила рядок, ставала вищою, і
+         вся карта під нею стрибала вниз. Тепер вона на всю ширину колонки, в
+         один рядок, а те, що не влазить, обрізається (див. `#tbactive`). */
+      #topbar {
+        box-sizing: border-box;
+        display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+        background: #141a22; border: 1px solid #232b36; border-radius: 4px;
+        padding: 6px 8px;
+        width: 100%; height: 58px; flex: none; overflow: hidden;
+      }
+      .tb { display: flex; flex-direction: column; gap: 1px; min-width: 62px; }
+      .tbl {
+        color: #93a1b0; font-size: 11px; font-weight: 700; letter-spacing: .1em;
+        text-transform: uppercase;
+      }
+      .tbv { color: #eaeff5; font-size: 15px; font-weight: 700; line-height: 1.1; }
+      .tbsep { width: 1px; background: #232b36; margin: 0 2px; }
+      /* Обраний інструмент — не рядок серед рівних, а виділений блок (D-042). */
+      #tbactive {
+        /* `min-width: 0` — щоб довга назва стискала блок, а не смугу. */
+        flex: 1 1 200px; min-width: 0; overflow: hidden; padding: 3px 8px; border-radius: 3px;
+        background: #172231; border: 1px solid #3a4b63; border-left: 3px solid #7fb0e0;
+        display: flex; flex-direction: column; gap: 1px;
+      }
+      #tbactive .tbv { font-size: 14px; }
+      .tbnote { color: #9aa8b8; font-size: 11px; }
+      #tbactive .tbv, #tbactive .tbnote { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #topbar button {
+        align-self: center; font: inherit; padding: 6px 12px; border-radius: 4px; white-space: nowrap;
+        background: #1e3a52; color: #d7dde5; border: 1px solid #3a6288; cursor: pointer;
+      }
+      #topbar button:disabled {
+        background: #1b2230; border-color: #2b3543; color: #5c6675; cursor: default;
+      }
+      /* Сайдбар прибитий до правого краю: ширина фіксована, і він ніколи не
+         зсувається слідом за картою. Карта займає все, що лишилось. */
+      #hud {
+        width: 310px;
+        flex: 0 0 310px;
+        margin-left: auto;
+        max-height: 100%;
+        overflow-y: auto;
+        padding-right: 6px;
+      }
+      #hud::-webkit-scrollbar { width: 8px; }
+      #hud::-webkit-scrollbar-thumb { background: #232b36; border-radius: 4px; }
+      #hud h1 { font-size: 14px; margin: 0 0 8px; letter-spacing: .04em; }
+      /* Уся довідка — під акордеонами. Другий плейтест: «вся інфа не згрупована».
+         Згорнуте за замовчуванням, крім того, що потрібне щохвилі. */
+      #hud > details {
+        margin: 0 0 6px; border: 1px solid #232b36; border-radius: 4px; padding: 4px 8px;
+        background: #121820;
+      }
+      #hud > details > summary {
+        cursor: pointer; color: #e6edf5; font-size: 15px; font-weight: 800;
+        letter-spacing: .06em; text-transform: uppercase; padding: 4px 0;
+      }
+      #hud > details[open] > summary { border-bottom: 1px solid #232b36; margin-bottom: 6px; }
+      #hud dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
+      .grp { margin: 0 0 10px; border-left: 2px solid #232b36; padding-left: 8px; }
+      /* Підзаголовок мусить бути ВАГОМІШИМ за контент, а не дрібнішим:
+         з другого плейтесту — «губиться на фоні». */
+      .grptitle {
+        color: #c6d2de; font-size: 14px; font-weight: 800; letter-spacing: .1em;
+        text-transform: uppercase; margin-bottom: 5px;
+        border-bottom: 1px solid #232b36; padding-bottom: 2px;
+      }
+      .notice { color: #e2b24a; margin: 0 0 10px; }
+      #hud dt { color: #7d8896; }
+      #hud dd { margin: 0; }
+      /* Вердикт ніколи не зелений/червоний: ця пара найчастіше зливається при
+         колірній аномалії. Синій/помаранчевий різні і в градаціях сірого.
+         Значок ✓/✗ ставить сам код там, де він доречний. */
+      .ok { color: #7fb0e0; }
+      .bad { color: #e08a4a; }
+      kbd {
+        background: #1b2230; border: 1px solid #2b3543; border-radius: 3px;
+        padding: 0 4px; font-size: 11px;
+      }
+      #log { margin-top: 12px; border: 1px solid #2b3543; padding: 6px 8px; }
+      #log summary {
+        cursor: pointer; color: #9fc4e8; font-size: 11px;
+        letter-spacing: .06em; text-transform: uppercase;
+      }
+      #log .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+      #log button {
+        background: #1f3348; color: #d7dde5; border: 1px solid #35516d;
+        border-radius: 3px; padding: 3px 10px; font: inherit; font-size: 11px; cursor: pointer;
+      }
+      /* Текстове поле — запасний шлях: якщо буфер обміну недоступний
+         (немає HTTPS або немає дозволу), логи все одно можна виділити руками. */
+      #logdump {
+        display: none; width: 100%; height: 120px; box-sizing: border-box;
+        background: #11161d; color: #9aa8b8; border: 1px solid #2b3543;
+        border-radius: 3px; font: 10px/1.35 ui-monospace, Menlo, monospace;
+        padding: 4px; resize: vertical;
+      }
+      #dev, #econ { margin-top: 12px; border: 1px dashed #4a3a2a; padding: 6px 8px; }
+      #dev summary, #econ summary {
+        cursor: pointer; color: #c9a227; font-size: 11px;
+        letter-spacing: .06em; text-transform: uppercase;
+      }
+      #dev .row, #econ .row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+      #dev label, #econ label { color: #9aa8b8; font-size: 11px; }
+      #dev input[type='number'], #econ input[type='number'] {
+        width: 70px; background: #1b2230; border: 1px solid #2b3543;
+        color: #d7dde5; font: inherit; padding: 1px 4px; border-radius: 3px;
+      }
+      #dev button, #econ button {
+        background: #2a2230; color: #d7dde5; border: 1px solid #43354b;
+        border-radius: 3px; padding: 2px 8px; font: inherit; font-size: 11px; cursor: pointer;
+      }
+      #dev .lvl, #econ .lvl { color: #8b96a4; font-size: 11px; margin-top: 6px; }
+      #keys { color: #7d8896; margin-top: 12px; }
+      #keys div { margin-bottom: 2px; }
+      #keys summary {
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 10px;
+        color: #5d6673;
+        margin-bottom: 6px;
+      }
+      button#restart {
+        display: block; width: 100%; margin: 0 0 12px; background: #2a2230;
+        color: #d7dde5; border: 1px solid #43354b; border-radius: 4px;
+        padding: 5px 10px; font: inherit; cursor: pointer;
+      }
+      #mapname {
+        color: #eaeff5; font-size: 15px; font-weight: 800; letter-spacing: .03em;
+        margin: 0 0 6px;
+      }
+      #maps { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 10px; }
+      button.mapbtn {
+        font: inherit; font-size: 11px; padding: 4px 9px; border-radius: 3px;
+        cursor: pointer; background: #1b2230; color: #cfd8e2; border: 1px solid #2b3543;
+      }
+      /* Поточна карта позначена **і** рамкою, **і** значком ✓ у тексті — колір
+         сам по собі не носій сенсу (D-069). */
+      button.mapbtn.here {
+        border-color: #7fb0e0; border-style: double; color: #eaeff5;
+        cursor: default; background: #172231;
+      }
+      /* Підпис групи в підказці керування: список із 20 рядків без груп
+         читається як стіна тексту. */
+      .keysgroup {
+        margin: 6px 0 2px; font-size: 10px; letter-spacing: 0.08em;
+        text-transform: uppercase; color: #7b8794;
+      }
+      /* ⚠️ Курсор — **другий канал** до вигляду: клікабельність не має читатись
+         лише з того, що елемент схожий на кнопку. Правило одне на всіх, а не
+         список винятків: усе, що взагалі можна натиснути, отримує вказівник,
+         а вимкнене — стрілку, щоб «недоступне» відчувалось до кліку. */
+      button:not(:disabled),
+      summary,
+      .btnlink,
+      [role='button'] { cursor: pointer; }
+      button:disabled { cursor: default; }
+      /* Складності — той самий вигляд, що карти, але окремим рядом і з
+         відступом: це вибір **усередині** карти, не сусідня карта. */
+      #difficulty { margin-top: 4px; padding-left: 10px; border-left: 2px solid #2b3543; }
+      /* Підгілка дерева: підписаний блок замість плаского списку з 15 вузлів. */
+      .subline { margin: 0 0 10px; border-left: 2px solid #2b3543; padding-left: 8px; }
+      .sublabel {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+        color: #8b97a6; margin: 0 0 4px;
+      }
+      .toprow { display: flex; gap: 6px; margin: 0 0 12px; }
+      .toprow button { flex: 1 1 0; margin: 0; }
+      /* Посилання, що виглядає кнопкою: тому самому рядку — той самий вигляд. */
+      .toprow .btnlink {
+        flex: 1 1 0; text-align: center; text-decoration: none;
+        font: inherit; color: #cfd8e2; background: #1a212b;
+        border: 1px solid #2b3543; border-radius: 3px; padding: 5px 8px;
+      }
+      .toprow .btnlink:hover, .toprow .btnlink:focus-visible {
+        border-color: #7fb0e0; color: #eaeff5; outline: none;
+      }
+      button#whatsnew {
+        background: #1b2230; color: #cfd8e2; border: 1px solid #3a4b63;
+        border-radius: 4px; padding: 5px 10px; font: inherit; cursor: pointer;
+      }
+      /* Модалка ченджлогу. Скрол **внутрішній**: сторінка позаду не рухається,
+         інакше довгий список тягнув би за собою всю розкладку. */
+      /* Дерево досліджень — модалка в стилі D2: сітка «підгілка × рівень» із
+         лініями передумов. Не окрема сторінка (рішення Андрія 2026-08-30):
+         дерево читають **під час** рану, а не замість нього. */
+      #trmodal {
+        position: fixed; inset: 0; z-index: 60; display: flex;
+        align-items: center; justify-content: center;
+        background: rgba(8, 10, 14, 0.82); padding: 20px;
+      }
+      #trmodal[hidden] { display: none; }
+      #trbox {
+        display: flex; flex-direction: column;
+        width: min(1180px, 100%); max-height: 100%;
+        background: #101620; border: 1px solid #2b3543; border-radius: 6px;
+      }
+      #trhead {
+        display: flex; align-items: baseline; gap: 14px;
+        padding: 10px 14px; border-bottom: 1px solid #232b36; flex: none;
+      }
+      #trtitle {
+        color: #e6edf5; font-size: 15px; font-weight: 800; letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+      #trpoints { color: #9ecbff; font-size: 13px; }
+      #trclose {
+        margin-left: auto; background: #1b2230; color: #cfd8e2; border: 1px solid #3a4b63;
+        border-radius: 4px; width: 28px; height: 26px; font: inherit; cursor: pointer;
+      }
+      #trbody { overflow: auto; padding: 12px 14px 16px; }
+      /* Таби напрямів: один напрям за раз (D-128). */
+      .trtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+      .trtab {
+        font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 4px;
+        background: #171f2b; color: #cfd8e2; border: 1px solid #2b3543;
+      }
+      .trtab:hover { background: #1e2836; }
+      /* Обраний — і рамкою, і подвійним контуром: колір не єдиний носій (D-069). */
+      .trtab.here {
+        border-color: #7fb0e0; border-style: double; color: #eaeff5; background: #1b2634;
+      }
+      .trtabn { color: #7b8794; font-size: 11px; margin-left: 6px; }
+      .trabout {
+        color: #9aa7b4; font-size: 12px; line-height: 1.5; margin: 0 0 14px;
+        border-left: 2px solid #2b3543; padding-left: 8px;
+      }
+      .trabout b { color: #cfd8e2; }
+      .trdir { margin: 0 0 18px; }
+      .trdirname {
+        color: #7fb0e0; font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+        border-bottom: 1px solid #2b3543; padding-bottom: 4px; margin-bottom: 8px;
+      }
+      /* Сітка: стовпчик = підгілка, рядок = рівень. Саме сітка, а не список —
+         тільки так видно, що гілки паралельні, а рівні послідовні. */
+      .trgrid { display: grid; gap: 8px 14px; align-items: start; }
+      .trcolname {
+        color: #9aa7b4; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+        text-align: center; padding-bottom: 2px;
+      }
+      .trcell { position: relative; }
+      /* Лінія передумови — вертикальна риска над вузлом. Другий канал до
+         кольору (D-069): звʼязок несе форма, а не заливка. */
+      /* Лінія передумови. Вертикальна — «спершу вузол над цим» (крок хребта:
+         мортира після рейки). Горизонтальна — «спершу вузол зліва» (покращення
+         тієї самої башти). Напрям лінії і є те, що робить порядок видимим. */
+      .trcell.above::before {
+        content: ''; position: absolute; left: 50%; top: -8px; width: 2px; height: 8px;
+        background: #3a4b63;
+      }
+      .trcell.left::before {
+        content: ''; position: absolute; top: 50%; left: -10px; height: 2px; width: 10px;
+        background: #3a4b63;
+      }
+      .trnode {
+        display: block; width: 100%; text-align: left; font: inherit; font-size: 12px;
+        background: #171f2b; color: #cfd8e2; border: 1px solid #2b3543;
+        border-radius: 4px; padding: 5px 7px; cursor: default;
+      }
+      .trnode .trmark { font-weight: 800; margin-right: 5px; }
+      .trnode .trname { color: #eaeff5; }
+      .trnode .trcost { float: right; color: #9aa7b4; font-size: 11px; }
+      .trnode .trgives { display: block; color: #8b97a4; font-size: 11px; margin-top: 3px; }
+      .trnode .trneed { display: block; color: #c9873f; font-size: 11px; margin-top: 3px; }
+      /* Характеристики башти списком, а не через кому: дев'ять чисел одним
+         абзацом читаються як суцільний потік. */
+      ul.statlist { list-style: none; margin: 3px 0 0; padding: 0; font-size: 11px; color: #8b97a4; }
+      ul.statlist li { padding: 1px 0; }
+      ul.statlist b { color: #cfd8e2; font-weight: 600; }
+      ul.statlist .was { color: #6b7885; }
+      /* «Було → стане» на картці апгрейда. Колір ніколи не єдиний носій
+         (D-069): напрямок несе ще й знак «+»/«−» на початку рядка. */
+      ul.statlist li.better { color: #7fb0e0; }
+      ul.statlist li.worse { color: #c9873f; }
+      ul.statlist li.new { color: #7fb0e0; }
+      ul.statlist li.better b, ul.statlist li.new b { color: #a9cdf2; }
+      ul.statlist li.worse b { color: #e0a765; }
+      /* Стани. Колір ніколи не єдиний носій (D-069): у кожного ще й значок у
+         тексті та власна форма рамки. */
+      .trnode.done { border-color: #4d7ea8; border-style: double; }
+      .trnode.ready { border-color: #7fb0e0; cursor: pointer; }
+      .trnode.ready:hover { background: #1e2836; }
+      .trnode.tooDear { border-style: dashed; color: #8b97a4; }
+      .trnode.closed { opacity: .55; border-style: dotted; }
+      .trnode.metaLocked { border-color: #d8b25c; border-style: dashed; }
+      /* Купується іншою валютою — і про це каже суцільна золота рамка (та сама
+         родина, що в metaLocked) плюс значок 🏅+ у тексті. */
+      /* Основна доктрина й скидання — рядком над сіткою, у табі своєї гілки. */
+      .trmain { margin: 0 0 8px; font-size: 12px; color: #9aa7b4; }
+      .trmain.here { color: #d8b25c; font-weight: 700; }
+      .trpick {
+        background: #241f16; color: #e6d8b8; border: 1px solid #6b5a33;
+        border-radius: 4px; padding: 3px 9px; font: inherit; font-size: 12px; cursor: pointer;
+      }
+      .trpick:hover:not(:disabled) { background: #2f2718; }
+      .trpick:disabled { opacity: .5; cursor: default; }
+      .trnode.metaBuy { border-color: #d8b25c; border-style: solid; cursor: pointer; }
+      .trnode.metaBuy:hover { background: #241f16; }
+      /* «Дорого» теж натискається: відмова з названою причиною вчить, мертва
+         кнопка — ні. Курсор мусить це показувати. */
+      .trnode.tooDear { cursor: pointer; }
+      /* Модалка кампанії ділить каркас із ченджлогом: два майже однакові
+         набори правил розійшлись би при першій же правці одного з них. */
+      #hubmodal, #clmodal {
+        position: fixed; inset: 0; z-index: 50; display: flex;
+        align-items: center; justify-content: center;
+        background: rgba(8, 10, 14, 0.72); padding: 24px;
+      }
+      #hubmodal[hidden], #clmodal[hidden] { display: none; }
+      #hubbox, #clbox {
+        display: flex; flex-direction: column;
+        width: min(760px, 100%); max-height: 100%;
+        background: #121820; border: 1px solid #2b3543; border-radius: 6px;
+      }
+      #hubhead, #clhead {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; border-bottom: 1px solid #232b36; flex: none;
+      }
+      #hubtitle, #cltitle {
+        color: #e6edf5; font-size: 16px; font-weight: 800; letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+      #hubclose, #clclose {
+        background: #1b2230; color: #cfd8e2; border: 1px solid #3a4b63;
+        border-radius: 4px; width: 28px; height: 26px; font: inherit; cursor: pointer;
+      }
+      /* Ось той внутрішній скрол. */
+      #hubbody, #clbody { overflow-y: auto; padding: 12px 14px 16px; }
+      #hubbody::-webkit-scrollbar, #clbody::-webkit-scrollbar { width: 10px; }
+      #hubbody::-webkit-scrollbar-thumb, #clbody::-webkit-scrollbar-thumb { background: #2b3543; border-radius: 5px; }
+      /* Батч — видима група з трьох карт (D-150). Рамка, а не лише відступ:
+         межа групи має читатись без кольору (D-069). */
+      .batch { border: 1px solid #2b3543; border-radius: 5px; padding: 8px 10px; margin: 0 0 10px; }
+      .batch.locked { opacity: .55; }
+      .batchhead {
+        color: #9fb0c6; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+        margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px;
+      }
+      .batchhead .state { color: #cfd8e2; text-transform: none; letter-spacing: 0; }
+      #hubrules { color: #9fb0c6; font-size: 12px; line-height: 1.55; margin-bottom: 12px; }
+      #hubrules b { color: #e6edf5; }
+      #hubrules ul { margin: 6px 0 0; padding-left: 18px; }
+      #hubpoints { color: #cfd8e2; font-size: 12px; }
+      .cldate {
+        color: #e6edf5; font-size: 15px; font-weight: 800; letter-spacing: .04em;
+        margin: 0 0 2px;
+      }
+      .cltitle2 { color: #9aa8b8; font-size: 12px; margin: 0 0 12px; }
+      .clhead2 {
+        color: #c6d2de; font-size: 13px; font-weight: 800; letter-spacing: .05em;
+        text-transform: uppercase; margin: 14px 0 5px;
+        border-bottom: 1px solid #232b36; padding-bottom: 3px;
+      }
+      #clbody ul { margin: 0; padding-left: 18px; }
+      #clbody li { color: #cfd8e2; font-size: 12px; line-height: 1.6; margin: 0 0 4px; }
+      #clbody li b { color: #eaeff5; }
+
+      .techs { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+      /* Дерево: вузол, під ним його гілка з відступом і вертикальною лінією.
+         Структура несе «що за чим» сама — зі списку це було невидимо. */
+      .tnode { display: flex; flex-direction: column; gap: 2px; margin: 3px 0; }
+      .branch {
+        margin: 2px 0 2px 10px; padding-left: 10px; border-left: 1px solid #2f3a49;
+        display: flex; flex-direction: column;
+      }
+      /* Горизонтальний вусик від лінії до вузла — щоб звʼязок читався, а не
+         вгадувався з відступу. */
+      .tnode.child { position: relative; }
+      .tnode.child::before {
+        content: ''; position: absolute; left: -10px; top: 11px;
+        width: 8px; height: 1px; background: #2f3a49;
+      }
+      /* Взаємовиключна група — рамкою, і з підписом. Правило «оберіть одне»
+         інакше лишалось би невидимим, і гравець дізнавався б його з відмови. */
+      .exclusive {
+        border: 1px dashed #4a5a70; border-radius: 4px; padding: 4px 6px 2px;
+        margin: 2px 0 6px;
+      }
+      .exlabel {
+        color: #c6d2de; font-size: 11px; font-weight: 800; letter-spacing: .06em;
+        text-transform: uppercase; margin-bottom: 3px;
+      }
+      .dir { display: flex; flex-direction: column; gap: 3px; }
+      /* Напрямок дерева — акордеон: із 23 вузлами розгорнуте все не читається.
+         Стан «розгорнуто» тримає JS, бо панель перемальовується повністю. */
+      details.dir {
+        border: 1px solid #232b36; border-radius: 4px; padding: 2px 8px 4px;
+        background: #10161e; margin: 0 0 4px;
+      }
+      details.dir > summary { cursor: pointer; }
+      details.dir[open] > summary { border-bottom: 1px solid #232b36; }
+      .dircount {
+        color: #93a1b0; font-size: 11px; font-weight: 700; letter-spacing: 0;
+        text-transform: none;
+      }
+      /* Напрямок дерева — теж підзаголовок, отже вагоміший за вміст. */
+      .dirname {
+        color: #c6d2de; font-size: 13px; font-weight: 800; letter-spacing: .06em;
+        text-transform: uppercase; margin: 8px 0 4px;
+      }
+      #meta { margin-bottom: 12px; }
+      #metaach { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+      .metahead { color: #e6edf5; font-size: 14px; font-weight: 800; letter-spacing: .04em; }
+      /* Умова: зароблена / ще жива цього рану / вже втрачена цього рану. */
+      .ach { margin: 3px 0; padding: 2px 0 2px 7px; border-left: 2px solid #2b3543; font-size: 11px; }
+      .ach b { color: #d7dde5; font-size: 12px; }
+      /* Стан читається зі **стилю рамки**, не лише з кольору: суцільна —
+         зароблено, штрихова — ще можлива, крапкова — втрачена. Текст рядка вже
+         починається з ✓ / ◦ / ✗ (D-046), отже каналів три. */
+      .ach.done { border-left-color: #3a6288; border-left-style: solid; }
+      .ach.done b { color: #7fb0e0; }
+      /* Виконана, але ще не зарахована: суцільна рамка як у зарахованої (умова
+         тримається), приглушений колір — очок ще не нараховано. Різницю несе й
+         значок ◉/◦, отже колір тут не єдиний канал (D-069). */
+      .ach.pending { border-left-color: #48708f; border-left-style: solid; }
+      .ach.pending b { color: #a9c4dc; }
+      .ach.live { border-left-color: #5a6577; border-left-style: dashed; }
+      .ach.dead { border-left-color: #7a5236; border-left-style: dotted; opacity: .6; }
+      .hint { color: #66707d; font-size: 11px; }
+      /* Зразок лінії маршруту в описі хвилі — вирівнюється по тексту, не по низу. */
+      .routesample { vertical-align: middle; margin: 0 2px; }
+      #guide { margin-bottom: 12px; }
+      #guide details { margin-bottom: 6px; }
+      #guide summary {
+        color: #dbe4ee; cursor: pointer; font-size: 13px; font-weight: 800;
+        letter-spacing: .06em; padding: 3px 0; border-bottom: 1px solid #232b36;
+      }
+      #guide .gi { margin: 6px 0 10px; }
+      #guide .gi.off { opacity: .5; }
+      #guide .gi b { color: #eaeff5; font-size: 13px; }
+      .stats { color: #9aa8b8; font-size: 11px; margin: 1px 0; }
+      /* Правило, за яким ворог пробивається. Не назва башні — вибір за гравцем. */
+      .rule {
+        color: #a8bda8; font-size: 11px; margin: 2px 0 0;
+        border-left: 2px solid #2f4a36; padding-left: 6px;
+      }
+      .need { color: #e2b24a; font-size: 11px; margin-top: 2px; }
+      .locked { color: #6d7683; }
+      .techgives { margin: 0 0 2px 2px; }
+      /* Розклад хвиль: поточна хвиля мусить бути видна одразу. */
+      .wrow {
+        margin: 4px 0; padding: 3px 6px; border-left: 2px solid #232b36;
+      }
+      .wrow.now { border-left-color: #7fb0e0; background: #16202b; }
+      .wrow b { color: #eaeff5; }
+      .newkind { color: #e2b24a; font-size: 11px; }
+      /* Активна споруда — найважливіший рядок у панелі, тому він не рядок. */
+      .active {
+        margin: 0 0 12px; padding: 6px 8px; border: 1px solid #3a4b63;
+        border-left: 3px solid #7fb0e0; border-radius: 4px; background: #172231;
+      }
+      .activetop { display: flex; justify-content: space-between; align-items: center; }
+      .activename { color: #eaeff5; font-weight: 700; font-size: 14px; }
+      .activekey {
+        background: #24314a; border: 1px solid #3a4b63; border-radius: 3px;
+        color: #9fc4e8; font-size: 11px; padding: 0 5px;
+      }
+      .activestat { color: #9aa8b8; font-size: 11px; }
+      button.tech {
+        text-align: left; font: inherit; padding: 4px 8px; border-radius: 3px; cursor: pointer;
+        background: #1b2230; border: 1px solid #2b3543; color: #d7dde5;
+      }
+      /* Доступність вузла — теж стилем рамки, не самим кольором. */
+      button.tech.can { border-color: #3a6288; border-style: solid; }
+      button.tech.cant { color: #5c6675; border-style: dotted; cursor: default; }
+      /* Слоти башні: видно, скільком лишилось, до кліку. */
+      .slots { color: #9aa8b8; font-size: 11px; margin: 0 0 5px; }
+      .modon {
+        color: #7fb0e0; font-size: 11px; margin: 0 0 4px;
+        border-left: 2px solid #3a6288; padding-left: 6px;
+      }
+      button.tech.done { color: #7fb0e0; border-color: #3a6288; border-style: double; cursor: default; }
+    </style>
+    <script type="module" crossorigin src="/redoubt-play/assets/index-D8nMejBm.js"></script>
+  </head>
+  <body>
+    <div id="left">
+      <!-- Головні числа — над картою, за її межами. Це те, на що гравець дивиться
+           щосекунди; решта інформації живе в сайдбарі під акордеонами. -->
+      <div id="topbar">
+        <div class="tb"><span class="tbl">хвиля</span><span class="tbv" id="tbwave">—</span></div>
+        <div class="tbsep"></div>
+        <div class="tb"><span class="tbl">золото</span><span class="tbv" id="tbgold">—</span></div>
+        <div class="tb"><span class="tbl">дохід</span><span class="tbv" id="tbincome">—</span></div>
+        <div class="tb"><span class="tbl">квота стін</span><span class="tbv" id="tbquota">—</span></div>
+        <!-- Очки **досягнень** — валюта дерева (D-136). Стоїть у смузі поруч із
+             золотом навмисно: валюта, якої гравець не бачить, існує лише для
+             розробника (той самий клас, що невидимі ачівки). -->
+        <div class="tb"><span class="tbl">очки досягнень</span><span class="tbv" id="tbpoints">—</span></div>
+        <div class="tb"><span class="tbl">витрачено</span><span class="tbv" id="tbspent">—</span></div>
+        <div class="tbsep"></div>
+        <div id="tbactive"></div>
+        <button id="ready">Готовий →</button>
+      </div>
+      <canvas id="view"></canvas>
+    </div>
+    <div id="hud">
+      <h1>REDOUBT · прототип №1</h1>
+      <!-- Назви поточної карти на екрані досі не було взагалі: заголовок казав
+           «прототип №1», а яку саме карту граєш — ніде. Тепер вона тут, і поруч
+           перехід між картами. -->
+      <div id="mapname"></div>
+      <!-- ⚠️ Вибір карти, складність, правка прогресу й підкрутка економіки
+           переїхали в модалку «Кампанія». Причина: це дії **між ранами**, а
+           сайдбар — панель бою. Тримати їх поруч означало пропонувати гравцеві
+           перемкнути карту посеред хвилі, і кожна така кнопка забирала місце в
+           того, на що він дивиться щосекунди. -->
+      <div class="toprow">
+        <button id="openhub" type="button">Кампанія · вибір карти</button>
+      </div>
+      <!-- «Почати заново» стоїть **над** акордеонами навмисно: раніше вона
+           лежала під ними, і щоб перезапустити рівень доводилось прокручувати
+           всю панель. Дія часта — місце мусить бути без скролу. -->
+      <div class="toprow">
+        <button id="restart">Почати заново</button>
+        <button id="whatsnew">Що нового</button>
+      </div>
+      <!-- Бриф для художника — окрема сторінка збірки (`public/models/`).
+           Посилання **відносне**: `base` при збірці `/redoubt-play/`, у dev `/`,
+           тому абсолютний шлях працював би лише в одному з двох. Кнопка тут, а
+           не в месенджері, бо шукати лінку щоразу — це фрикція, а не робота. -->
+      <div class="toprow">
+        <!-- «Що чим відкривається» стоїть **перед** брифом: бриф потрібен мені,
+             а ця сторінка — гравцеві, і саме її бракувало на плейтесті (ферма
+             не гейтиться взагалі, а спосіб її поставити ніде не був названий). -->
+        <button class="btnlink" id="opentree" type="button">Дослідження (T)</button>
+      </div>
+      <details id="statuspanel" open>
+        <summary>Стан бою</summary>
+        <div id="stats"></div>
+      </details>
+      <details id="modspanel" open>
+        <summary>Модифікатори башні</summary>
+        <div id="mods"></div>
+      </details>
+      <!-- ⚠️ Тут була панель досліджень. Прибрана разом із ран-шаром (D-136):
+           дерево купується між ранами й живе в модалці (клавіша T), а другий
+           екран того самого дерева розійшовся б із першим після першої правки. -->
+      <!-- Відкрита за замовчуванням: це нагорода за ран. Згорнутою вона
+           коштувала плейтесту — гравець пройшов рівень, заробив три умови й
+           не побачив жодної, бо вони лежали за закритим акордеоном із назвою
+           «Між ранами», з якої нічого не зрозуміло. -->
+      <details id="metapanel" open>
+        <summary>Досягнення</summary>
+        <div id="meta"></div>
+      </details>
+      <details id="guidepanel">
+        <summary>Довідка рівня</summary>
+        <div id="guide"></div>
+      </details>
+      <details id="log">
+        <summary>Журнал дій</summary>
+        <div class="row">
+          <button id="logsave">Зберегти файл</button>
+          <button id="logcopy">Скопіювати логи</button>
+          <button id="logclear">Очистити</button>
+          <span id="logcount" class="hint"></span>
+        </div>
+        <textarea id="logdump" readonly></textarea>
+      </details>
+      <details id="keys">
+        <summary>Керування (будь-яка розкладка)</summary>
+        <!-- Список **не** пишеться тут: джерело — `src/content/controls.ts`,
+             бо та сама таблиця потрібна ще й на сторінці дерева, і два списки
+             розійшлися б мовчки (так уже сталось із клавішею G). -->
+        <div id="keysbody"></div>
+      </details>
+    </div>
+    <!-- Модалка «Що нового». Прихована атрибутом hidden, а не класом: без
+         нього вміст існує в потоці до першого відкриття й ламає розкладку. -->
+    <!-- Дерево досліджень. Модалка, а не сторінка: рішення Андрія 2026-08-30. -->
+    <div id="trmodal" hidden>
+      <div id="trbox" role="dialog" aria-modal="true" aria-labelledby="trtitle">
+        <div id="trhead">
+          <span id="trtitle">Дослідження</span>
+          <span id="trpoints"></span>
+          <button id="trclose" aria-label="Закрити">✕</button>
+        </div>
+        <div id="trbody"></div>
+      </div>
+    </div>
+    <!-- Кампанія: усе, що робиться **між ранами**. Модалкою, а не окремою
+         сторінкою — щоб не заводити SPA заради вибору карти (рішення Андрія
+         2026-09-03). -->
+    <div id="hubmodal" hidden>
+      <div id="hubbox" role="dialog" aria-modal="true" aria-labelledby="hubtitle">
+        <div id="hubhead">
+          <span id="hubtitle">Кампанія</span>
+          <span id="hubpoints"></span>
+          <button id="hubclose" aria-label="Закрити">✕</button>
+        </div>
+        <div id="hubbody">
+          <!-- ⚠️ Один корінь замість трьох блоків (D-153). Три окремі елементи
+               й були причиною бага: після скидання прогресу оновлювались не всі,
+               бо кожен малювався своїм правилом. Розмітку всередині будує
+               `ui/CampaignHub.tsx`, зокрема ті самі #hubrules/#maps/#difficulty
+               — стилі лишаються чинними. -->
+          <div id="hubreact"></div>
+          <div class="toprow">
+            <a class="btnlink" href="tree/" target="_blank" rel="noopener">Що чим відкривається</a>
+            <a class="btnlink" href="models/" target="_blank" rel="noopener">Моделі: бриф для 3D</a>
+          </div>
+          <details id="dev">
+            <summary>Розробнику: правка прогресу</summary>
+            <div id="devbody"></div>
+          </details>
+          <!-- Економіка окремою згорткою від прогресу: це різні інструменти. Той
+               крутить мета-стан гравця, цей — числа рівня, і плутати їх у одному
+               списку означало б випадково скинути прогрес, шукаючи баланс золота. -->
+          <details id="econ">
+            <summary>Розробнику: економіка рівня</summary>
+            <div id="econbody"></div>
+          </details>
+        </div>
+      </div>
+    </div>
+    <div id="clmodal" hidden>
+      <div id="clbox" role="dialog" aria-modal="true" aria-labelledby="cltitle">
+        <div id="clhead">
+          <span id="cltitle">Що нового</span>
+          <button id="clclose" aria-label="Закрити">✕</button>
+        </div>
+        <div id="clbody"></div>
+      </div>
+    </div>
+    <!--
+      ⚠️ Перехоплювач ставиться ПЕРЕД модулем гри, інакше він не почує винятку
+      під час її ініціалізації. Без нього будь-який збій на старті виглядає як
+      порожня сторінка з рисками замість чисел — тестувальникові нічого сказати,
+      а мені нічого читати.
+
+      Зʼявився під час полювання на порожню сторінку, яка виявилась НЕ багом:
+      у фоновій вкладці браузер не викликає `requestAnimationFrame` узагалі,
+      отже цикл кадрів не запускається й панелі лишаються порожні. Тобто цей
+      блок нічого тоді не показав — і саме тому корисний: тепер порожня
+      сторінка **з** повідомленням і **без** нього — це два різні діагнози.
+    -->
+    <script>
+      window.addEventListener('error', function (e) {
+        var box = document.getElementById('fatal');
+        if (box === null) return;
+        box.hidden = false;
+        box.textContent =
+          'Гра не запустилась: ' + (e.message || 'невідома помилка') +
+          '\n\n' + ((e.error && e.error.stack) || '') +
+          '\n\nСкажи про це Клодові — цей текст можна скопіювати цілком.';
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var box = document.getElementById('fatal');
+        if (box === null) return;
+        box.hidden = false;
+        box.textContent = 'Гра не запустилась: ' + String((e.reason && e.reason.stack) || e.reason);
+      });
+    </script>
+    <pre id="fatal" hidden style="position:fixed;inset:8px;z-index:999;overflow:auto;white-space:pre-wrap;background:#2a0d0d;color:#ffd9d9;border:1px solid #a33;padding:12px;font:12px/1.5 ui-monospace,monospace"></pre>
+  </body>
+</html>
